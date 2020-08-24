@@ -1,9 +1,10 @@
-#include "bezier.hpp"
+#include "hermite.hpp"
 #include <cmath>
 #include <iostream>
 
-const float pointRadius = 5.0f;
-const float midPointRadius = 2.0f;
+const float pointRadius = 10.0f;
+const float indicatorRadius = 15.0f;
+const float lineRadius = 2.0f;
 const float normalScaling = 0.1f;
 const int num_points = 200;
 const float increment = 1.0/num_points;
@@ -15,18 +16,18 @@ float square_dist(sf::Vector2f const & v1, sf::Vector2f const & v2) {
 }
 
 
-BezierPoint::BezierPoint(sf::Vector2f position, sf::Vector2f tangent):
+CubicHermitePoint::CubicHermitePoint(sf::Vector2f position, sf::Vector2f tangent):
   m_position(position), m_tangent(tangent) {
     this->focused = false;
   }
 
-BezierInput::BezierInput(BezierEngine* engine) {
+CubicHermiteInput::CubicHermiteInput(CubicHermiteEngine* engine) {
   this->m_currentState = DEFAULT;
   this->m_engine = engine;
   this->m_focusedPoint = -1;
 }
 
-void BezierInput::MouseMoved(sf::Vector2f position) {
+void CubicHermiteInput::MouseMoved(sf::Vector2f position) {
   //If point is focused, move it with the mouse
   if (m_currentState == DEFAULT) return;
 
@@ -51,7 +52,7 @@ void BezierInput::MouseMoved(sf::Vector2f position) {
 
 }
 
-void BezierInput::ButtonPressed(sf::Mouse::Button button, sf::Vector2f position) {
+void CubicHermiteInput::ButtonPressed(sf::Mouse::Button button, sf::Vector2f position) {
   if (button != sf::Mouse::Left) return;
 
   //find pressed points, focus the pressed one
@@ -60,7 +61,7 @@ void BezierInput::ButtonPressed(sf::Mouse::Button button, sf::Vector2f position)
   //switch to new state
   if (pointIdx == -1) {
     if (m_focusedPoint != -1) {
-      BezierPoint& focusedPoint = m_engine->GetPoint(m_focusedPoint);
+      CubicHermitePoint& focusedPoint = m_engine->GetPoint(m_focusedPoint);
       sf::Vector2f indicatorPos = ( focusedPoint.position() + focusedPoint.tangent() * normalScaling);
       if (square_dist(position, indicatorPos) < pointRadius*pointRadius) {
         m_currentState = MOVING_TANGENT;
@@ -83,15 +84,23 @@ void BezierInput::ButtonPressed(sf::Mouse::Button button, sf::Vector2f position)
   }
 }
 
-void BezierInput::ButtonReleased(sf::Mouse::Button button, sf::Vector2f position) {
+void CubicHermiteInput::ButtonReleased(sf::Mouse::Button button, sf::Vector2f position) {
   if (button != sf::Mouse::Left) return;
 
   m_currentState = DEFAULT;
 }
 
-BezierEngine::BezierEngine() {}
+void CubicHermiteInput::KeyPressed(sf::Event::KeyEvent event) {
+  if (event.code == sf::Keyboard::Z) {
+    m_engine->DeleteLastPoint();
+  }
+}
 
-long BezierEngine::AddPoint(sf::Vector2f coords, sf::Vector2f tangent) {
+void CubicHermiteInput::KeyReleased(sf::Event::KeyEvent event) {}
+
+CubicHermiteEngine::CubicHermiteEngine() {}
+
+long CubicHermiteEngine::AddPoint(sf::Vector2f coords, sf::Vector2f tangent) {
   const long idx = m_points.size();
   m_points.emplace_back(coords, tangent);
 
@@ -102,38 +111,41 @@ long BezierEngine::AddPoint(sf::Vector2f coords, sf::Vector2f tangent) {
   return idx;
 }
 
-void BezierEngine::UpdatePointPosition(long idx, sf::Vector2f pos) {
+void CubicHermiteEngine::UpdatePointPosition(long idx, sf::Vector2f pos) {
   m_points[idx].m_position = pos;
 }
 
-void BezierEngine::UpdatePointTangent(long idx, sf::Vector2f tangent) {
+void CubicHermiteEngine::UpdatePointTangent(long idx, sf::Vector2f tangent) {
   m_points[idx].m_tangent = tangent;
 }
 
-void BezierEngine::RenderLine(sf::RenderWindow & window) const {
+void CubicHermiteEngine::RenderLine(sf::RenderWindow & window) const {
   sf::CircleShape pointShape{pointRadius};
-  sf::CircleShape lineShape{midPointRadius};
+  sf::CircleShape indicatorShape{indicatorRadius};
+  sf::CircleShape highlightedShape{pointRadius};
+  sf::CircleShape lineShape{lineRadius};
   pointShape.setOrigin({pointRadius, pointRadius});
-  lineShape.setOrigin({midPointRadius, midPointRadius});
+  indicatorShape.setOrigin({indicatorRadius, indicatorRadius});
+  indicatorShape.setFillColor(sf::Color(255,0,0));
+  highlightedShape.setOrigin({pointRadius, pointRadius});
+  highlightedShape.setFillColor(sf::Color{0,255,0});
+  lineShape.setOrigin({lineRadius, lineRadius});
 
   if (m_points.size() > 0) {
     for (size_t i = 0; i < m_points.size() - 1; ++i) {
       for (size_t j = 1; j < num_points; ++j) {
-        lineShape.setPosition(bezier_interpolate(increment * j, m_points[i], m_points[i+1]));
+        lineShape.setPosition(cubic_hermite_interpolation(increment * j, m_points[i], m_points[i+1]));
         window.draw(lineShape);
       }
     }
   }
-  for (BezierPoint const & point : m_points) {
+  for (CubicHermitePoint const & point : m_points) {
 
     if (point.focused) {
-      pointShape.setPosition(( point.position() + point.tangent() * normalScaling ));
-      pointShape.setFillColor(sf::Color(255,0,0));
-      window.draw(pointShape);
-      pointShape.setFillColor(sf::Color{0,255,0});
-      pointShape.setPosition(point.position());
-      window.draw(pointShape);
-      pointShape.setFillColor(sf::Color{255,255,255});
+      indicatorShape.setPosition(( point.position() + point.tangent() * normalScaling ));
+      window.draw(indicatorShape);
+      highlightedShape.setPosition(point.position());
+      window.draw(highlightedShape);
     } else {
       pointShape.setPosition(point.position());
       window.draw(pointShape);
@@ -143,11 +155,15 @@ void BezierEngine::RenderLine(sf::RenderWindow & window) const {
   }
 }
 
-std::unique_ptr<InputHandler> BezierEngine::GetInputHandler() {
-  return std::make_unique<BezierInput>(this);
+void CubicHermiteEngine::DeleteLastPoint() {
+  m_points.pop_back();
 }
 
-long BezierEngine::GetHitPointIdx(sf::Vector2f pos) {
+std::unique_ptr<InputHandler> CubicHermiteEngine::GetInputHandler() {
+  return std::make_unique<CubicHermiteInput>(this);
+}
+
+long CubicHermiteEngine::GetHitPointIdx(sf::Vector2f pos) {
   auto point = std::find_if(std::begin(m_points), std::end(m_points), 
     [&pos](auto point) {
       return square_dist(pos, point.position()) < pointRadius*pointRadius;
@@ -156,11 +172,11 @@ long BezierEngine::GetHitPointIdx(sf::Vector2f pos) {
   return std::distance(std::begin(m_points), point);
 }
 
-BezierPoint& BezierEngine::GetPoint(long index) {
+CubicHermitePoint& CubicHermiteEngine::GetPoint(long index) {
   return m_points[index];
 }
 
-sf::Vector2f bezier_interpolate(float t, BezierPoint const & p0, BezierPoint const & p1) {
+sf::Vector2f cubic_hermite_interpolation(float t, CubicHermitePoint const & p0, CubicHermitePoint const & p1) {
   return 
     (2*t*t*t - 3*t*t + 1)*p0.position()
     + (t*t*t - 2*t*t + t)*p0.tangent()

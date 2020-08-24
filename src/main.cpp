@@ -2,13 +2,13 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <memory>
-#include "bezier.hpp"
+#include "hermite.hpp"
 
 int main() {
   sf::RenderWindow window(sf::VideoMode(400,400), "Hello");
 
-  BezierEngine engine;
-  std::unique_ptr<InputHandler> inputHandler = engine.GetInputHandler();
+  std::unique_ptr<LineEngine> engine = std::make_unique<CubicHermiteEngine>();
+  std::unique_ptr<InputHandler> inputHandler = engine->GetInputHandler();
 
   //engine.AddPoint({10,10}, {1000,0});
   //engine.AddPoint({390, 390}, {-500, 0});
@@ -35,6 +35,11 @@ int main() {
         case sf::Event::MouseButtonReleased:
           inputHandler->ButtonReleased(event.mouseButton.button, window.mapPixelToCoords({event.mouseButton.x, event.mouseButton.y}));
           break;
+        case sf::Event::KeyPressed:
+          inputHandler->KeyPressed(event.key);
+          break;
+        case sf::Event::KeyReleased:
+          inputHandler->KeyReleased(event.key);
           break;
         case sf::Event::Closed:
           // "close requested" event: we close the window
@@ -47,7 +52,7 @@ int main() {
 
     window.clear();
 
-    engine.RenderLine(window);
+    engine->RenderLine(window);
 
     window.display();
   }
