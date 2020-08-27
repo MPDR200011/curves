@@ -3,15 +3,13 @@
 #include <vector>
 #include <memory>
 #include "hermite.hpp"
+#include "bezier.hpp"
 
 int main() {
   sf::RenderWindow window(sf::VideoMode(400,400), "Hello");
 
-  std::unique_ptr<LineEngine> engine = std::make_unique<CubicHermiteEngine>();
+  std::unique_ptr<LineEngine> engine = std::make_unique<BezierEngine>();
   std::unique_ptr<InputHandler> inputHandler = engine->GetInputHandler();
-
-  //engine.AddPoint({10,10}, {1000,0});
-  //engine.AddPoint({390, 390}, {-500, 0});
 
   while (window.isOpen()) {
     // check all the window's events that were triggered since the last iteration of the loop
