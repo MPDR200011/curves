@@ -55,6 +55,12 @@ void BezierInput::ButtonReleased(sf::Mouse::Button button, sf::Vector2f position
 
 void BezierInput::KeyPressed(sf::Event::KeyEvent event) {
   switch (event.code) {
+    case sf::Keyboard::S:
+      m_engine->ToggleSmoothMode();
+      break;
+    case sf::Keyboard::Z:
+      m_engine->DeleteLastPoint();
+      break;
     case sf::Keyboard::Left:
       m_engine->DecrementDegree();
       break;
@@ -67,18 +73,19 @@ void BezierInput::KeyPressed(sf::Event::KeyEvent event) {
 }
 void BezierInput::KeyReleased(sf::Event::KeyEvent event) {}
 
-BezierEngine::BezierEngine(unsigned degree): m_degree(degree) {
+BezierEngine::BezierEngine(unsigned degree): 
+  m_degree(degree), m_smoothMode{false} {
   std::printf("Built BezierEngine for degree = %u.\n", m_degree);
 }
 
 sf::Vector2f BezierEngine::InterpolateFromPoint(float t, size_t pointIdx) const {
   sf::Vector2f positions[m_degree+1];
-  for (int i = 0; i < m_degree + 1; ++i) {
+  for (size_t i = 0; i < m_degree + 1; ++i) {
     positions[i] = m_points[pointIdx+i].position();
   }
 
   for (unsigned degree = m_degree; degree > 0; --degree) {
-    for (int i = 0; i < degree; i++) {
+    for (size_t i = 0; i < degree; i++) {
       auto vector = positions[i+1] - positions[i];
       positions[i] += vector * t;
     }
@@ -94,9 +101,28 @@ void BezierEngine::RenderLine(sf::RenderWindow& window) const {
   sf::CircleShape lineShape{lineRadius};
   lineShape.setOrigin({lineRadius, lineRadius});
 
+  for (size_t i = 0; i + 1 < m_points.size(); ++i) {
+    sf::Vertex vertices[2] = {
+      { m_points[i].position(), sf::Color{180,180,180} },
+      { m_points[i+1].position(), sf::Color{180,180,180} }
+    };
+
+    window.draw(vertices, 2, sf::Lines);
+  }
+
+  size_t counter = 0;
   for (BezierPoint const & point: m_points) {
     pointShape.setPosition(point.position());
-    window.draw(pointShape);
+    if (counter % m_degree == 0) {
+      //edge point
+      pointShape.setFillColor(sf::Color{0,255,0});
+      window.draw(pointShape);
+    } else {
+      //control point
+      pointShape.setFillColor(sf::Color{255,255,255});
+      window.draw(pointShape);
+    }
+    counter++;
   }
 
   for (int i = 0; i + m_degree < m_points.size(); i+= m_degree) {
@@ -110,11 +136,28 @@ void BezierEngine::RenderLine(sf::RenderWindow& window) const {
 long BezierEngine::AddPoint(sf::Vector2f coords) {
   long idx = m_points.size();
   m_points.emplace_back(coords);
+  if (m_smoothMode && idx % m_degree == 1 && idx > 1) {
+    auto direction = m_points[idx-1].position() - coords;
+    m_points[idx-2].m_position = m_points[idx-1].position() + direction;
+  }
   return idx;
 }
 
 
 void BezierEngine::UpdatePointPosition(long idx, sf::Vector2f pos) {
+  if (m_smoothMode) {
+    if (idx % m_degree == 0) {
+      auto direction = pos - m_points[idx].position();
+      if (idx > 0) m_points[idx-1].m_position += direction;
+      if (idx + 1 < m_points.size()) m_points[idx+1].m_position += direction;
+    } else if (idx % m_degree == m_degree-1 && idx + 2 < m_points.size()) {
+      auto direction = m_points[idx+1].position() - pos;
+      m_points[idx+2].m_position = m_points[idx+1].position() + direction;
+    } else if (idx % m_degree == 1 && idx > 1) {
+      auto direction = m_points[idx-1].position() - pos;
+      m_points[idx-2].m_position = m_points[idx-1].position() + direction;
+    }
+  }
   m_points[idx].m_position = pos;
 }
 
@@ -123,11 +166,31 @@ long BezierEngine::DeleteLastPoint() {
   return m_points.size();
 }
 
+void BezierEngine::ToggleSmoothMode() {
+  m_smoothMode = !m_smoothMode;
+  CorrectSmooth();
+}
+
 void BezierEngine::IncrementDegree() {
-  m_degree = std::clamp(++m_degree, 1U, 6U);
+  m_degree = std::clamp(m_degree + 1, 1U, 6U);
+  CorrectSmooth();
 }
 void BezierEngine::DecrementDegree() {
-  m_degree = std::clamp(--m_degree, 1U, 6U);
+  m_degree = std::clamp(m_degree - 1, 1U, 6U);
+  CorrectSmooth();
+}
+
+void BezierEngine::CorrectSmooth() {
+  if (m_degree < 3) {
+    m_smoothMode = false;
+    return;
+  }
+  if (m_smoothMode) {
+    for (size_t i = m_degree-1; i + 2 < m_points.size(); i+=m_degree) {
+      auto direction = m_points[i+1].position() - m_points[i].position();
+      m_points[i+2].m_position = m_points[i+1].position() + direction;
+    }
+  }
 }
 
 std::unique_ptr<InputHandler> BezierEngine::GetInputHandler() {

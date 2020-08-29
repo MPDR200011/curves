@@ -48,8 +48,10 @@ class BezierEngine : public LineEngine {
   std::vector<BezierPoint> m_points;
 
   unsigned m_degree;
+  bool m_smoothMode;
 
   sf::Vector2f InterpolateFromPoint(float t, size_t pointIdx) const;
+  void CorrectSmooth();
 
 public:
   BezierEngine(unsigned degree = 2);
@@ -59,6 +61,8 @@ public:
   long AddPoint(sf::Vector2f coords);
   void UpdatePointPosition(long idx, sf::Vector2f pos);
   long DeleteLastPoint();
+
+  void ToggleSmoothMode();
 
   void IncrementDegree();
   void DecrementDegree();
