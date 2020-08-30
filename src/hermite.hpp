@@ -61,7 +61,7 @@ public:
   void UpdatePointPosition(long idx, sf::Vector2f pos);
   void UpdatePointTangent(long idx, sf::Vector2f tangent);
   void RenderLine(sf::RenderWindow & window) const;
-  void DeleteLastPoint();
+  long DeleteLastPoint();
 
   std::unique_ptr<InputHandler> GetInputHandler();
 

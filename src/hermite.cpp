@@ -91,8 +91,9 @@ void CubicHermiteInput::ButtonReleased(sf::Mouse::Button button, sf::Vector2f po
 }
 
 void CubicHermiteInput::KeyPressed(sf::Event::KeyEvent event) {
+  if (m_currentState != DEFAULT) return;
   if (event.code == sf::Keyboard::Z) {
-    m_engine->DeleteLastPoint();
+    if (m_engine->DeleteLastPoint() == m_focusedPoint) m_focusedPoint = -1;
   }
 }
 
@@ -155,8 +156,9 @@ void CubicHermiteEngine::RenderLine(sf::RenderWindow & window) const {
   }
 }
 
-void CubicHermiteEngine::DeleteLastPoint() {
+long CubicHermiteEngine::DeleteLastPoint() {
   m_points.pop_back();
+  return m_points.size();
 }
 
 std::unique_ptr<InputHandler> CubicHermiteEngine::GetInputHandler() {

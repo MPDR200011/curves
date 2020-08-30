@@ -54,12 +54,15 @@ void BezierInput::ButtonReleased(sf::Mouse::Button button, sf::Vector2f position
 }
 
 void BezierInput::KeyPressed(sf::Event::KeyEvent event) {
+  if (m_currentState != DEFAULT) return;
   switch (event.code) {
     case sf::Keyboard::S:
       m_engine->ToggleSmoothMode();
       break;
     case sf::Keyboard::Z:
-      m_engine->DeleteLastPoint();
+      {
+        if (m_engine->DeleteLastPoint() == m_focusedPoint) m_focusedPoint = -1;
+      }
       break;
     case sf::Keyboard::Left:
       m_engine->DecrementDegree();
