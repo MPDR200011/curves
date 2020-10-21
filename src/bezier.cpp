@@ -1,5 +1,5 @@
 #include "bezier.hpp"
-#include <iostream>
+#include "utils.hpp"
 #include <algorithm>
 
 const float pointRadius = 10.0f;
@@ -7,26 +7,18 @@ const float lineRadius = 2.0f;
 const int num_points = 200;
 const float increment = 1.0/num_points;
 
-float square_dist(sf::Vector2f const & v1, sf::Vector2f const & v2) {
-  float p1 = v1.x - v2.x;
-  float p2 = v1.y - v2.y;
-  return p1*p1 + p2*p2;
-}
-
 BezierPoint::BezierPoint(sf::Vector2f position): 
-  m_position(position), focused(false) {
+  m_position(position) {}
 
-  }
-
-BezierInput::BezierInput(BezierEngine* engine): m_engine(engine), 
-  m_focusedPoint{-1}, m_currentState{ DEFAULT } {}
+BezierInput::BezierInput(BezierEngine* engine): m_engine{engine}, 
+  m_currentState{ DEFAULT } {}
 
 void BezierInput::MouseMoved(sf::Vector2f vector) {
   if (m_currentState == DEFAULT) return;
   switch (m_currentState) {
     case MOVING_POINT:
       {
-        m_engine->UpdatePointPosition(m_focusedPoint, vector);
+        m_engine->UpdatePointPosition(*m_focusedPoint, vector);
       }
       break;
     default:
@@ -37,8 +29,8 @@ void BezierInput::MouseMoved(sf::Vector2f vector) {
 void BezierInput::ButtonPressed(sf::Mouse::Button button, sf::Vector2f position) {
   if (button != sf::Mouse::Left) return;
 
-  long point = m_engine->GetHitPointIdx(position);
-  if (point != -1) {
+  auto point = m_engine->GetHitPointIdx(position);
+  if (point) {
     m_focusedPoint = point;
     m_currentState = MOVING_POINT;
   } else {
@@ -50,6 +42,7 @@ void BezierInput::ButtonPressed(sf::Mouse::Button button, sf::Vector2f position)
 void BezierInput::ButtonReleased(sf::Mouse::Button button, sf::Vector2f position) {
   if (button != sf::Mouse::Left) return;
 
+  m_focusedPoint.reset();
   m_currentState = DEFAULT;
 }
 
@@ -61,7 +54,7 @@ void BezierInput::KeyPressed(sf::Event::KeyEvent event) {
       break;
     case sf::Keyboard::Z:
       {
-        if (m_engine->DeleteLastPoint() == m_focusedPoint) m_focusedPoint = -1;
+        if (m_engine->DeleteLastPoint() == m_focusedPoint) m_focusedPoint.reset();
       }
       break;
     case sf::Keyboard::Left:
@@ -77,9 +70,7 @@ void BezierInput::KeyPressed(sf::Event::KeyEvent event) {
 void BezierInput::KeyReleased(sf::Event::KeyEvent event) {}
 
 BezierEngine::BezierEngine(unsigned degree): 
-  m_degree(degree), m_smoothMode{false} {
-  std::printf("Built BezierEngine for degree = %u.\n", m_degree);
-}
+  m_degree(degree), m_smoothMode{false} { }
 
 sf::Vector2f BezierEngine::InterpolateFromPoint(float t, size_t pointIdx) const {
   sf::Vector2f positions[m_degree+1];
@@ -136,8 +127,8 @@ void BezierEngine::RenderLine(sf::RenderWindow& window) const {
   }
 }
 
-long BezierEngine::AddPoint(sf::Vector2f coords) {
-  long idx = m_points.size();
+size_t BezierEngine::AddPoint(sf::Vector2f coords) {
+  size_t idx = m_points.size();
   m_points.emplace_back(coords);
   if (m_smoothMode && idx % m_degree == 1 && idx > 1) {
     auto direction = m_points[idx-1].position() - coords;
@@ -147,7 +138,7 @@ long BezierEngine::AddPoint(sf::Vector2f coords) {
 }
 
 
-void BezierEngine::UpdatePointPosition(long idx, sf::Vector2f pos) {
+void BezierEngine::UpdatePointPosition(size_t idx, sf::Vector2f pos) {
   if (m_smoothMode) {
     if (idx % m_degree == 0) {
       auto direction = pos - m_points[idx].position();
@@ -164,7 +155,7 @@ void BezierEngine::UpdatePointPosition(long idx, sf::Vector2f pos) {
   m_points[idx].m_position = pos;
 }
 
-long BezierEngine::DeleteLastPoint() {
+size_t BezierEngine::DeleteLastPoint() {
   m_points.pop_back();
   return m_points.size();
 }
@@ -200,12 +191,12 @@ std::unique_ptr<InputHandler> BezierEngine::GetInputHandler() {
   return std::make_unique<BezierInput>(this);
 }
 
-long BezierEngine::GetHitPointIdx(sf::Vector2f pos) {
+std::optional<size_t> BezierEngine::GetHitPointIdx(sf::Vector2f pos) {
   auto point = std::find_if(std::begin(m_points), std::end(m_points), 
     [&pos](auto point) {
       return square_dist(pos, point.position()) < pointRadius*pointRadius;
     });
-  if (point == std::end(m_points)) return -1;
+  if (point == std::end(m_points)) return std::nullopt;
   return std::distance(std::begin(m_points), point);
 }
 

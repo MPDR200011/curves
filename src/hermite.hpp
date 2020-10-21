@@ -11,7 +11,7 @@ class CubicHermitePoint {
   sf::Vector2f m_position;
   sf::Vector2f m_tangent;
 
-  bool focused;
+  bool m_focused;
 
   friend class CubicHermiteEngine;
 
@@ -26,7 +26,7 @@ public:
   }
 
   void setFocused(bool value) {
-    this->focused = value;
+    this->m_focused = value;
   }
 };
 
@@ -38,11 +38,10 @@ class CubicHermiteInput : public InputHandler {
   MouseState m_currentState;
 
   CubicHermiteEngine* m_engine;
-  long m_focusedPoint;
+  std::optional<size_t> m_focusedPoint;
 
 public:
   CubicHermiteInput(CubicHermiteEngine* engine);
-  ~CubicHermiteInput() {}
 
   void MouseMoved(sf::Vector2f position);
   void ButtonPressed(sf::Mouse::Button button, sf::Vector2f position);
@@ -57,15 +56,15 @@ class CubicHermiteEngine : public LineEngine {
 public:
   CubicHermiteEngine();
 
-  long AddPoint(sf::Vector2f coords, sf::Vector2f tangent);
+  size_t AddPoint(sf::Vector2f coords, sf::Vector2f tangent);
   void UpdatePointPosition(long idx, sf::Vector2f pos);
   void UpdatePointTangent(long idx, sf::Vector2f tangent);
   void RenderLine(sf::RenderWindow & window) const;
-  long DeleteLastPoint();
+  size_t DeleteLastPoint();
 
   std::unique_ptr<InputHandler> GetInputHandler();
 
-  long GetHitPointIdx(sf::Vector2f pos);
+  std::optional<size_t> GetHitPointIdx(sf::Vector2f pos);
   CubicHermitePoint& GetPoint(long index);
 };
 

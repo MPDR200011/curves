@@ -2,8 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <memory>
-#include "hermite.hpp"
-#include "bezier.hpp"
+#include "line_includes.hpp"
 
 int main() {
   sf::RenderWindow window(sf::VideoMode(400,400), "Hello");
